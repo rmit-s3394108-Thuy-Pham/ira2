@@ -9,34 +9,61 @@ import java.util.regex.Pattern;
 
 public class search
 {
+
   public static void main(String[] args)throws IOException
+  {
+    String typeOFsimilarityFunction = new String();
+    String query_label = new String();
+    String lexiconname = new String();
+    String invlistsname = new String();
+    String mapname = new String();
+    int num_results;
+    String stoplistname = new String();
+    ArrayList<String> queryterms = new ArrayList<>();
+    Hashtable<String, Integer> lexicon = new Hashtable<>();
+    Hashtable<Integer, String> map = new Hashtable<>();
+    Hashtable<String, Double> docIDanddocweight = new Hashtable<>();
+
+    if (args.length <12)
     {
-      String lexiconname = new String();
-      String invlistsname = new String();
-      String mapname = new String();
-      ArrayList<String> queryterms = new ArrayList<>();
-      Hashtable<String, Integer> lexicon = new Hashtable<>();
-      Hashtable<Integer, String> map = new Hashtable<>();
-      if (args.length <4)
+      System.out.println("Please enter the right invocation in this format");
+    }
+    else
+    {
+      typeOFsimilarityFunction = args[0];
+      query_label = args[2];
+      num_results = Integer.parseInt(args[4]);
+      lexiconname = args[6];
+      invlistsname = args[8];
+      mapname = args[10];
+      if (args[11].equals("-s"))
       {
-        System.out.println("Please enter the invocation in this format (or equilavent format): java search lexicon invlists map queryterm_1");
-      }
-      else
-      {
-        lexiconname = args[0];
-        invlistsname = args[1];
-        mapname = args[2];
-        for (int i =3; i < args.length; i++)
+        stoplistname = args[12];
+        for (int i =13; i < args.length; i++)
         {
           String query = (args[i].replaceAll("[^a-zA-z]", " ")).toLowerCase(); // process the query term same as the way process lexicon
           String[] temp = query.split(" ");
           for (String term: temp)
           {
-           queryterms.add(term);
+            queryterms.add(term);
+          }
+        }
+
+      }
+      else
+      {
+        for (int i =11; i < args.length; i++)
+        {
+          String query = (args[i].replaceAll("[^a-zA-z]", " ")).toLowerCase(); // process the query term same as the way process lexicon
+          String[] temp = query.split(" ");
+          for (String term: temp)
+          {
+            queryterms.add(term);
           }
         }
       }
-      /*loading lexicon to a hashtable again to process*/
+
+      /*loading Lexicon into hashtable*/
       try
       {
         FileReader fr = new FileReader(lexiconname);
@@ -65,6 +92,7 @@ public class search
       {
         System.out.println(fnfe.getMessage());
       }
+
       /*Loading map from disk to memory*/
       try
       {
@@ -76,9 +104,10 @@ public class search
           while  (((sLine = bReader.readLine()) != null) && (!sLine.equals("\n")))
           {
             String[] mapElements = sLine.split("\t");
-            if (mapElements.length ==2)
+            if (mapElements.length == 3)
             {
               map.put(Integer.parseInt(mapElements[0]), mapElements[1]);
+              docIDanddocweight.put(mapElements[1],Double.parseDouble(mapElements[2]));
             }
           }
         }
@@ -92,29 +121,138 @@ public class search
         System.out.println(fnfe.getMessage());
       }
 
+      /*Caculate Average Document Length*/
+      double AL;
+      double totallength = 0;
+      for (Object key: docIDanddocweight.keySet())
+      {
+        totallength = totallength + docIDanddocweight.get(key);
+      }
+      AL = totallength/(docIDanddocweight.size());
+      System.out.println("docIDanddocweight has size of: " + docIDanddocweight.size());
+      System.out.println("total length: "+ AL);
+
+      Hashtable<String, Double> docIDandBM25 = new Hashtable<String, Double>();
       for (String queryterm : queryterms)
       {
         if (lexicon.containsKey(queryterm))
         {
-          System.out.println(queryterm);
+          int N = map.size();
+          int ft;
           int fileoffsetpostion = lexicon.get(queryterm); //get how many blocks we need to skip
           byte[] docFreinBinary = new byte[18];
           RandomAccessFile raFile = new RandomAccessFile(invlistsname, "r");
           raFile.seek(fileoffsetpostion*18); // each block has 18 bits
           raFile.readFully(docFreinBinary);
-          int docFre = Integer.parseInt((new String(docFreinBinary)), 2);
-          System.out.println(docFre);
-          for (int i = 0; i < docFre; i ++)
+          ft = Integer.parseInt((new String(docFreinBinary)), 2);
+          for (int i = 0; i < ft; i ++)
           {
+            int fdt;
+            int docID;
+            double BM25;
+            double K;
+            double L;
+            double k1 = 1.2;
+            double b = 0.75;
             byte[] docIDinBinary = new byte[18];
             raFile.readFully(docIDinBinary);
-            int docID = Integer.parseInt((new String(docIDinBinary)), 2);
+            docID = Integer.parseInt((new String(docIDinBinary)), 2);
             byte[] inDocFreinBinary = new byte[18];
             raFile.readFully(inDocFreinBinary);
-            int inDocFre = Integer.parseInt((new String(inDocFreinBinary)), 2);
-            System.out.println(map.get(docID) + "     " + inDocFre);
+            fdt = Integer.parseInt((new String(inDocFreinBinary)), 2);
+            L = docIDanddocweight.get(map.get(docID));
+            K = k1 * ( (1 - b) + ((b*L)/AL));
+            BM25 = Math.log(((N - ft) + 0.5)/(ft + 0.5)) * ((k1 + 1)*fdt)/(K + fdt);
+            if (!(docIDandBM25.containsKey(docID)))
+            {
+              docIDandBM25.put(map.get(docID), BM25);
+            }
+            else
+            {
+              double currBM25 = docIDandBM25.get(docID);
+              docIDandBM25.put(map.get(docID), currBM25 + BM25);
+            }
           }
         }
       }
+      MinHeap minheap = new MinHeap(docIDandBM25, num_results);
+      double[] heap = minheap.getHeap();
+      String[] docIDArray = minheap.getDocIDarray();
+      for (int a = 0; a < heap.length; a++)
+      {
+        System.out.println(heap[a] + " " + docIDArray[a]);
+      }
     }
+  }
 }
+
+  // public static int parent(int pos)
+  // {
+  //   return pos/2;
+  // }
+  //
+  // public static void swap(int fpos, int tpos)
+  // {
+  //   double tmp;
+  //   tmp = heap[fpos];
+  //   heap[fpos] = heap[tpos];
+  //   heap[tpos] = tmp;
+  // }
+  // public static int rightChild(int p)
+  // {
+  //   return p*2 + 1;
+  // }
+  // public static int leftChild(int p)
+  // {
+  //   return p*2;
+  // }
+  // public static void swapID(int fpos, int tpos)
+  // {
+  //   String tmp;
+  //   tmp = docIDArray[fpos];
+  //   docIDArray[fpos] = docIDArray[tpos];
+  //   docIDArray[tpos] = tmp;
+  // }
+  //
+  // public static boolean isLeaf(int p)
+  // {
+  //   if (p >=  (((double)(heap.length)) /  2)  &&  p <= heap.length)
+  //   {
+  //     return true;
+  //   }
+  //   return false;
+  // }
+  //
+  // public static void minHeapipy(int k)
+  // {
+  //   if (!isLeaf(k))
+  //   {
+  //     if (rightChild(k) == (heap.length))
+  //     {
+  //       if (heap[k] > heap[leftChild(k)])
+  //       {
+  //         swap(k, leftChild(k));
+  //         swapID(k, leftChild(k));
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if ( heap[k] > heap[leftChild(k)]  || heap[k] > heap[rightChild(k)])
+  //       {
+  //         if (heap[leftChild(k)] < heap[rightChild(k)])
+  //         {
+  //           swap(k, leftChild(k));
+  //           swapID(k, leftChild(k));
+  //           minHeapipy(leftChild(k));
+  //         }
+  //         else
+  //         {
+  //           swap(k, rightChild(k));
+  //           swapID(k, rightChild(k));
+  //           minHeapipy(rightChild(k));
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  // }

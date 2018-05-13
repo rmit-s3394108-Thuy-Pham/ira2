@@ -92,15 +92,16 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
   ArrayList<String> docnoslist = new ArrayList<>(); // arraylist to store all the unique document identifier <DOCNO>
   Hashtable<String, Integer> lexicon = new Hashtable<>();//hashtable to keep unique terms and its doc fre. key: each unique term, value: doc fre
   Hashtable<String, ArrayList<String>> keyvsPairDocIDandTF = new Hashtable<String, ArrayList<String>>();//hashtable to keep track of DOCID and TF. key: each unique term, value: arraylist of DocID and TF.
-
+  ArrayList<Integer> docweights = new ArrayList<>();
   for (int a = 1; a < docs.length; a++) //Go through each doc of the collection
   {
     /*Find the unique document identifier in the <DOCNO> tag*/
     Pattern pDocNo = Pattern.compile("<DOCNO> (\\S+) </DOCNO>", Pattern.MULTILINE);
     Matcher mDocNo = pDocNo.matcher(docs[a]);
+    String docno;
     if (mDocNo.find())
     {
-      String docno = mDocNo.group(1);
+      docno = mDocNo.group(1);
       docnoslist.add(docno); // add the DOCNO to an arraylist first
     }
     /*Extract the content data in the <HEADLINE> and <TEXT> tags of each doc*/
@@ -121,6 +122,27 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
         }
       }
     }
+    else
+    {
+      Pattern SpContent = Pattern.compile("(?<=<TEXT>)([^\r]*)(?=</TEXT>)" );
+      Matcher SmContent = SpContent.matcher(docs[a]);
+      if (SmContent.find())
+      {
+        String text = (((SmContent.group(1).toString()).replaceAll("<.*>", "")).replaceAll("[^a-zA-z]", " ")).toLowerCase();
+        //the processed text will be remove all the markup tag,
+        //any punctuations and symbols that are not letter or numbers will be replace by " "
+        String[] termsOfContent = text.split(" ");
+        for (String term: termsOfContent)
+        {
+          if (!(stoplist.containsKey(term))) //remove stopwords from the list of processed terms
+          {
+            cleanedTextremovedstopwords.add(term); // add the content terms to the arraylist
+          }
+        }
+      }
+    }
+
+
     /*Loop through the arraylist of terms to:
     // building lexicon,
     // finding Document Frequency, DocID and Within-Doc-Frequency
@@ -128,12 +150,14 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
     Hashtable <String, Integer> keyvsInDocFre = new Hashtable<String, Integer>();
     //Hashtable to keep track of within-doc frequency for each term.
     // key: the unique content term, value: tf
+    int docweight = 0;
     for (int k =0; k < cleanedTextremovedstopwords.size(); k++)//go thru each content term
     {
       String key = (cleanedTextremovedstopwords.get(k)).toString();
       if ((key.length() >0) && (!key.isEmpty())) //excludes the empty/spaces/null values
       {
         //case1: if the lexicon don't have the term yet
+        docweight = docweight + key.getBytes().length;
         if (!(lexicon.containsKey(key)))
         {
           lexicon.put(key, 1);
@@ -152,6 +176,7 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
         }
       }
     }
+    docweights.add(docweight);
 
     /*Loop through the temporary hashtable that keep within-doc fre(tf) for each term
     and update the hashtable keyvsPairDocIDandTF that has key: each unique term, value: arraylist of DocID and TF */
@@ -171,9 +196,11 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
       }
 
     }
+
   }//end of looping through each doc.
 
   System.out.println("Lexicon size: " + lexicon.size());
+
 
 
 
@@ -227,7 +254,7 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
   FileWriter pwM = new FileWriter(new File("map"));
   for (Object keyofMap : map.keySet())
   {
-    pwM.write(keyofMap + "\t" + map.get(keyofMap) + "\n");
+    pwM.write(keyofMap + "\t" + map.get(keyofMap) + "\t" + docweights.get((int)keyofMap-1) + "\n");
   }
   pwM.close();
   long endTimeM = System.nanoTime();
