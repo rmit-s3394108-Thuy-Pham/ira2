@@ -157,7 +157,7 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
       if ((key.length() >0) && (!key.isEmpty())) //excludes the empty/spaces/null values
       {
         //case1: if the lexicon don't have the term yet
-        docweight = docweight + key.getBytes().length;
+        docweight = docweight + key.getBytes().length; // caculate the docweight
         if (!(lexicon.containsKey(key)))
         {
           lexicon.put(key, 1);
@@ -176,7 +176,7 @@ public static void createLexiInvlistsMap(String sourcefile, String stoplistname)
         }
       }
     }
-    docweights.add(docweight);
+    docweights.add(docweight); // update docweight table
 
     /*Loop through the temporary hashtable that keep within-doc fre(tf) for each term
     and update the hashtable keyvsPairDocIDandTF that has key: each unique term, value: arraylist of DocID and TF */

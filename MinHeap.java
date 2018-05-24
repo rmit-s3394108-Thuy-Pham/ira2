@@ -6,17 +6,7 @@ private static String[] docIDArray;
 public int num_results;
 public MinHeap(Hashtable<String, Double> hash, int num_results)
 {
-  // Hashtable<String, Double> hash = new Hashtable<String, Double>();
-  // hash.put("ID1", 10.0);
-  // hash.put("ID2", 2.5);
-  // hash.put("ID3", 3.5);
-  // hash.put("ID4", 400.0);
-  // hash.put("ID5", 50.0);
-  // hash.put("ID6", 611.0);
-  // hash.put("ID7", 77.0);
-  // hash.put("ID8", 88.0);
-  // hash.put("ID9", 99.0);
-  // hash.put("ID10", 100.0);
+
   this.num_results = num_results;
   this.heap = new double[num_results + 1];
   this.docIDArray = new String[num_results + 1];
@@ -52,10 +42,7 @@ public MinHeap(Hashtable<String, Double> hash, int num_results)
       }
     }
   }
-  for(int a = 1; a < heap.length; a++)
-  {
-  System.out.println("The largest BMvalue is: "+ heap[a] +" " + docIDArray[a]);
-  }
+
 }
 public double[] getHeap(){
   return this.heap;
